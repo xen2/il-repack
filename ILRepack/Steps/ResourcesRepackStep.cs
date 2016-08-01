@@ -133,6 +133,15 @@ namespace ILRepacking.Steps
                                         newResource = FixResxResource(assembly, er, assemblyProcessors,
                                             shouldWriteCollectedBamlStreams ? bamlStreamCollector : null);
                                     }
+                                    else
+                                    {
+                                        // Copy it (otherwise stream might be disposed before we are done writing the new one)
+                                        MemoryStream stream = (MemoryStream)er.GetResourceStream();
+                                        var output = new byte[stream.Length];
+                                        stream.Read(output, 0, output.Length);
+
+                                        newResource = new EmbeddedResource(er.Name, er.Attributes, output);
+                                    }
                                     break;
                             }
                             _targetAssemblyMainModule.Resources.Add(newResource);
