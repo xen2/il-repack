@@ -43,8 +43,9 @@ namespace ILRepacking
         // contains all assemblies, primary (first one) and 'other'
         public IList<AssemblyDefinition> MergedAssemblies { get; private set; }
         public AssemblyDefinition TargetAssemblyDefinition { get; private set; }
-        public AssemblyDefinition PrimaryAssemblyDefinition { get; private set; }
-        public RepackAssemblyResolver GlobalAssemblyResolver { get; } = new RepackAssemblyResolver();
+        public AssemblyDefinition PrimaryAssemblyDefinition { get; set; }
+        public IRepackAssemblyResolver GlobalAssemblyResolver { get; set; }
+        public bool MemoryOnly { get; set; }
 
         public ModuleDefinition TargetAssemblyMainModule => TargetAssemblyDefinition.MainModule;
         public ModuleDefinition PrimaryAssemblyMainModule => PrimaryAssemblyDefinition.MainModule;
@@ -85,6 +86,12 @@ namespace ILRepacking
             OtherAssemblies = new List<AssemblyDefinition>();
             // TODO: this could be parallelized to gain speed
             var primary = MergedAssemblyFiles.FirstOrDefault();
+            if (PrimaryAssemblyDefinition != null)
+            {
+                primary = PrimaryAssemblyFile;
+                GlobalAssemblyResolver.RegisterAssembly(PrimaryAssemblyDefinition);
+            }
+
             var debugSymbolsRead = false;
             foreach (string assembly in MergedAssemblyFiles)
             {
@@ -260,9 +267,16 @@ namespace ILRepacking
             var timer = new Stopwatch();
             timer.Start();
             Options.Validate();
+
+            var ownGlobalAssemblyResolver = false;
+            if (GlobalAssemblyResolver == null)
+            {
+                ownGlobalAssemblyResolver = true;
+                GlobalAssemblyResolver = CreateDefaultAssemblyResolver();
+            }
+
             PrintRepackHeader();
             _reflectionHelper = new ReflectionHelper(this);
-            ResolveSearchDirectories();
 
             // Read input assemblies only after all properties are set.
             ReadInputAssemblies();
@@ -343,6 +357,9 @@ namespace ILRepacking
                 MergedAssemblies[i].Dispose();
             }
 
+            if (MemoryOnly)
+                return;
+
                 var parameters = new WriterParameters
                 {
                     StrongNameKeyPair = signingStep.KeyPair,
@@ -363,6 +380,7 @@ namespace ILRepacking
                 Logger.Info("Writing output assembly to disk");
                 TargetAssemblyDefinition.Write(Options.OutputFile, parameters);
                 TargetAssemblyDefinition.Dispose();
+            if (ownGlobalAssemblyResolver)
                 GlobalAssemblyResolver.Dispose();
                 // If this is an executable and we are on linux/osx we should copy file permissions from
                 // the primary assembly
@@ -397,18 +415,21 @@ namespace ILRepacking
             }
         }
 
-        private void ResolveSearchDirectories()
+        private IRepackAssemblyResolver CreateDefaultAssemblyResolver()
         {
+            var result = new RepackAssemblyResolver();
             foreach (var dir in Options.SearchDirectories)
-                GlobalAssemblyResolver.AddSearchDirectory(dir);
+                result.AddSearchDirectory(dir);
             var targetPlatformDirectory = Options.TargetPlatformDirectory ?? ResolveTargetPlatformDirectory(Options.TargetPlatformVersion);
             if (targetPlatformDirectory != null)
             {
-                GlobalAssemblyResolver.AddSearchDirectory(targetPlatformDirectory);
+                result.AddSearchDirectory(targetPlatformDirectory);
                 var facadesDirectory = Path.Combine(targetPlatformDirectory, "Facades");
                 if (Directory.Exists(facadesDirectory))
-                    GlobalAssemblyResolver.AddSearchDirectory(facadesDirectory);
+                    result.AddSearchDirectory(facadesDirectory);
             }
+
+            return result;
         }
 
         private ResourceDirectory MergeWin32Resources(ResourceDirectory primary)
