@@ -333,7 +333,7 @@ namespace ILRepacking
             var signingStep = new SigningStep(this, Options);
             var isUnixEnvironment = Environment.OSVersion.Platform == PlatformID.MacOSX || Environment.OSVersion.Platform == PlatformID.Unix;
 
-            using (var sourceServerDataStep = GetSourceServerDataStep(isUnixEnvironment))
+            using (var sourceServerDataStep = !isUnixEnvironment && Options.SourceServerData ? GetSourceServerDataStep(isUnixEnvironment) : null)
             {
                 List<IRepackStep> repackSteps = new List<IRepackStep>
                 {
@@ -344,8 +344,9 @@ namespace ILRepacking
                     new AttributesRepackStep(Logger, this, _repackImporter, Options),
                     new ReferencesFixStep(Logger, this, _repackImporter, Options),
                     new XamlResourcePathPatcherStep(Logger, this),
-                    sourceServerDataStep
                 };
+                if (sourceServerDataStep != null)
+                    repackSteps.Add(sourceServerDataStep);
 
                 foreach (var step in repackSteps)
                 {
@@ -375,7 +376,7 @@ namespace ILRepacking
                 }
 
 
-                sourceServerDataStep.Write();
+                sourceServerDataStep?.Write();
 
                 Logger.Info("Writing output assembly to disk");
                 TargetAssemblyDefinition.Write(Options.OutputFile, parameters);

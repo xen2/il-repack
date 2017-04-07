@@ -26,6 +26,7 @@ namespace ILRepacking
         public bool Closed { get; set; } // UNIMPL
         public bool CopyAttributes { get; set; }
         public bool DebugInfo { get; set; }
+        public bool SourceServerData { get; set; }
         public bool DelaySign { get; set; }
 
          /// <summary>
@@ -155,6 +156,7 @@ namespace ILRepacking
             Closed = cmd.Modifier("closed");
             CopyAttributes = cmd.Modifier("copyattrs");
             DebugInfo = !cmd.Modifier("ndebug");
+            SourceServerData = !cmd.Modifier("nosourceserverdata");
             DelaySign = cmd.Modifier("delaysign");
             cmd.Option("align"); // not supported, just prevent interpreting this as file...
             Internalize = cmd.HasOption("internalize");
